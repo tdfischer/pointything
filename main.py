@@ -12,3 +12,5 @@ if __name__ == "__main__":
     out = pthang.do("concat", "Ho", "dy")
     out = pthang.do("reverse", out)
     print pthang.do("concat", "Reversed howdy bits:", " ", out)
+    pthang.do("loadModule", "Games")
+    print pthang.do("8ball")
