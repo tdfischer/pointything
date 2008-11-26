@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
-from Pointything import Extension, Action
-from Pointything.io import Output
+from Pointything.Extensions import *
 
 class StringTransform(Extension):
     extension_name = "strings"

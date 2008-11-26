@@ -1,73 +1,75 @@
 # -*- coding: utf-8 -*-
 import imp
-from Extension import *
-from io import *
+from Extensions import *
 import sys
+import select
+import __builtin__
 
 class ExtensionControl(Extension):
+    '''Extension to control the extensions'''
     extension_name = "extensionControl"
-    def __init__(self):
+    def __init__(self, bot):
+        Extension.__init__(self, bot)
         sys.path.append("/home/trever/Projects/Pointything5/Pointything/modules")
     
     @Action
     def loadModule(self, bot, modName):
         (file, path, desc) = imp.find_module(modName)
-        if file == None:
-            raise ImportError, "Module not found"
+
         mod = imp.load_module(modName, file, path, desc)
         foundExtensions = []
         for item in dir(mod):
             ext = getattr(mod, item)
-            if type(ext) == type(Extension) and issubclass(ext, Extension) and ext != Extension:
+            if type(ext) == type(Extension) and issubclass(ext, Extension) and ext != Extension and ext != InputHandler:
                 foundExtensions.append(ext.extension_name)
-                bot.extendWith(ext())
+                bot.extendWith(ext)
         return "Loading complete. Found extensions: %s"%(foundExtensions)
     
     @Action
-    def loadExtension(self, bot, extName):
-        for item in globals():
-            if type(item) == type(__builtin__):
-                for ext in dir(item):
-                    if type(ext) == type(Extension) and issubclass(ext, Extension):
-                        bot.extendWith(ext())
-        else:
-            raise ImportError, "Extension not found in loaded modules."
-        return "Found module"
+    def details(self, bot, extName):
+        ext = bot.grabExtension(extName)
+        details = {}
+        details["Name"] = ext.extension_name
+        details["Desc"] = ext.__doc__
+        details["Class"] = str(ext)
+        return details
     
     @Action
-    def unloadExtension(self, bot, modName):
-        pass
+    def unload(self, bot, extName):
+        bot.unloadExtension(bot.grabExtension(extName))
+        return "Unloaded extension"
         
     @Action
-    def listFunctions(self, bot):
+    def functions(self, bot, module=None):
         ret = []
-        for f in bot.commands.keys():
-            ret.append(f)
+        if module!=None:
+            for i in bot.extensions[module].userMethods():
+                ret.append(i.action_name)
+        else:
+            ret = bot.commands
         return ret
     
     @Action
-    def listExtensions(self, bot):
+    def extensions(self, bot):
         ret = []
         for m in bot.extensions:
-            ret.append(m.extension_name)
+            ret.append(m)
         return ret
 
 class Pointything:
     def __init__(self):
         self.commands = {}
-        self.extensions = []
+        self.extensions = {}
+        self.inputs = []
+        
+        self.extendWith(ExtensionControl)
 
     def do(self, command, *args, **kwargs):
-        #if len(args)==0:
-        #    input = Output()
-        #elif type(args[0]) != Output:
-        #    input = Output(args[0])
-        #else:
-        #    input = args[0]
-        input = Output()
-        for i in args:
-            input.append(i)
-        command = self.commands[command]
+        input = Output(args)
+        if command in self.commands:
+            command = self.commands[command]
+        else:
+            raise NotImplementedError, "Could not find command %s"%(command)
         out = command(self, *input, **kwargs)
         def doWrapper(command, *fargs, **fkwargs):
             for i in fargs:
@@ -77,17 +79,37 @@ class Pointything:
         out.do = doWrapper
         return out
 
+    def run(self):
+        while True:
+            streamToListener = {}
+            for i in self.inputs:
+                for s in i.streams():
+                    streamToListener[s] = i
+            if len(streamToListener)==0:
+                return
+            outputs = select.select(streamToListener,[],[])[0]
+            for out in outputs:
+                streamToListener[out].parse(self)
+
     def extendWith(self, ext):
         self.unloadExtension(ext)
-        self.extensions.append(ext)
-        for cmd in ext.userMethods():
-            if cmd.action_name in self.commands.keys():
-                self.commands[ext.extension_name+"_"+cmd.action_name] = cmd
-            else:
+        extInstance = ext(self)
+        self.extensions[ext.extension_name]=extInstance
+        for cmd in extInstance.userMethods():
+                self.commands[ext.extension_name+"."+cmd.action_name] = cmd
                 self.commands[cmd.action_name] = cmd
+        if isinstance(extInstance, InputHandler):
+            self.inputs.append(extInstance)
+    
+    def grabExtension(self, extName):
+        return self.extensions[extName]
     
     def unloadExtension(self, ext):
-        if ext in self.extensions:
+        if ext in self.extensions.values():
             for cmd in ext.userMethods():
-                del self.commands[cmd.action_name]
-            self.extensions.remove(ext)
+                if self.commands[cmd.action_name] == cmd:
+                    del self.commands[cmd.action_name]
+                del self.commands[ext.extension_name+"."+cmd.action_name]
+            del self.extensions[ext.extension_name]
+        if ext in self.inputs:
+            self.inputs.remove(ext)

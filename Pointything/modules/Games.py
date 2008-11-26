@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from Pointything import Extension, Action
+from Pointything.Extensions import *
 import random
 
 class EightBall(Extension):
