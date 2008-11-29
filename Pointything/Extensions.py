@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 from functools import wraps
+import logging
 
 class Extension:
     extension_name = ""
     def __init__(self, bot):
-        pass
+        self.log = logging.getLogger("Pointything.extensions.%s"%(self.__class__.extension_name))
     
     def __getattribute__(self, name):
         for m in self.userMethods():
@@ -38,16 +39,24 @@ def Action(name=None):
         return outputWrap
 
 class Output(list):
-    def __init__(self, init=None, delimiter=" "):
-        self.delimiter = delimiter
+    def __init__(self, input=None, user=None, bot=None, delimiter=None):
+        if delimiter == None:
+            self.delimiter = " "
+        self.bot = bot
+        self.user = user
         list.__init__(self)
-        if type(init)==str:
-            self.append(init)
-        elif init != None:
-            if isinstance(init,Output):
-                self.delimiter = init.delimiter
-                self.do = init.do
-            for i in init:
+        if type(input)==str or type(input) == unicode:
+            self.append(input)
+        elif input != None:
+            if isinstance(input,Output):
+                if delimiter == None:
+                    self.delimiter = input.delimiter
+                self.do = input.do
+                if user == None:
+                    self.user = input.user
+                if bot == None:
+                    self.bot = input.bot
+            for i in input:
                 self.append(i)
 
     def __str__(self):
@@ -55,11 +64,11 @@ class Output(list):
             return str(reduce(lambda x,y:str(x)+self.delimiter+str(y), self))
         return ""
     
-    def do(self, command, *args, **kwargs):
+    def do(self, command, out, user):
         pass
 
 class InputHandler(Extension):
-    def parse(self):
+    def parse(self, bot, stream):
         pass
 
     def streams(self):

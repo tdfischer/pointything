@@ -28,6 +28,6 @@ class EightBall(Extension):
         "You may rely on it"
     ]
     @Action("8ball")
-    def ball(self, bot, *args, **kwargs):
-        i = random.randint(0, len(EightBall.ANSWERS))
-        return random.choice(EightBall.ANSWERS)
+    def ball(self, input, *args):
+        #i = random.randint(0, len(EightBall.ANSWERS))
+        return "%s shook the 8ball and got: %s"%(input.user['login'], random.choice(EightBall.ANSWERS))
