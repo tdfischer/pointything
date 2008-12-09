@@ -5,11 +5,10 @@ import sys
 import select
 import logging
 import __builtin__
-import Database
 import traceback
 
 class ExtensionControl(Extension):
-    '''Extension to control the extensions'''
+    '''Extension to control the extensions. Thats deep, man.'''
     extension_name = "extensionControl"
     def __init__(self, bot):
         Extension.__init__(self, bot)
@@ -113,12 +112,20 @@ class Pointything:
                         out = traceback.format_exception(exceptionType, exceptionValue, exceptionTraceback)
                         for line in out:
                             self.log.error(line.strip())
+        self.log.info("Exiting main loop.")
+        self.cleanup()
+    
+    def cleanup(self):
+        self.log.debug("Cleaning up modules...")
+        extList = self.extensions.copy()
+        for m in extList:
+            self.unloadExtension(self.extensions[m])
 
     def extendWith(self, ext):
         log = logging.getLogger("Pointything.extensions")
         log.info("Loading extension %s", ext.extension_name)
-        self.unloadExtension(ext)
         extInstance = ext(self)
+        #self.unloadExtension(ext)
         self.extensions[ext.extension_name]=extInstance
         for cmd in extInstance.userMethods():
                 self.commands[ext.extension_name+"."+cmd.action_name] = cmd
@@ -143,3 +150,4 @@ class Pointything:
         if ext in self.inputs:
             log.info("Detatching input %s", ext.extension_name)
             self.inputs.remove(ext)
+        ext.unloaded()

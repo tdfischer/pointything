@@ -1,10 +1,17 @@
 # -*- coding: utf-8 -*-
-from Pointything.Database import *
+import Database
+
+class UserTable(Database.Table):
+    def __init__(self):
+        Database.Table.__init__(self, "users")
+        self.addField(Database.Fields.Integer("user_id").addConstraint(Database.Constraints.PrimaryKey()).addConstraint(Database.Constraints.AutoIncrement()))
+        self.addField(Database.Fields.Text("login"))
+        self.addField(Database.Fields.Text("password"))
 
 class User:
     def __init__(self, id):
-        db = Database();
-        u = db.find("users", "user_id", id)
+        tbl = UserTable()
+        u = tbl.select(tbl.fields(), (Database.Matches.Equals(tbl["user_id"], id),))
         data = u.fetchone()
         self.data = {}
         for idx, cell in enumerate(u.description):
@@ -19,8 +26,8 @@ class User:
     
     @staticmethod
     def login(login, password):
-        db = Database();
-        u = db.query("select user_id from users where login = ? and password = ?", (login, password))
+        tbl = UserTable()
+        u = tbl.select((tbl["user_id"],), (Database.Matches.Equals(tbl["login"], login), Database.Matches.Equals(tbl["password"], password)))
         u = u.fetchone()
         if u == None:
             return User(0)

@@ -21,6 +21,9 @@ class Extension:
             if hasattr(m,'action_name'):
                 ret.append(m)
         return ret
+    
+    def unloaded(self):
+        pass
 
 def Action(name=None):
     if type(name)==str:

@@ -1,32 +1,58 @@
 # -*- coding: utf-8 -*-
 from Pointything.Extensions import *
-from Pointything.Database import *
 from Pointything.Auth import *
 import socket
 import threading
 import traceback
 import sys
+import atexit
+
+class TelnetListener(threading.Thread):
+    def __init__(self, handler):
+        threading.Thread.__init__(self)
+        self.running = False
+        self.handler = handler
+        self.daemon = True
+        self.handler.log.info("Listening on *:16161")
+        self.server = socket.socket()
+        self.server.bind(("0.0.0.0", 16161))
+        self.server.listen(1)
+    
+    def run(self):
+        self.handler.log.debug("Starting listener thread")
+        self.running = True
+        self.server.settimeout(3)
+        while self.running == True:
+            try:
+                (sock, addr) = self.server.accept()
+                self.handler.clients.append(sock)
+                self.handler.buffers[sock] = ""
+                self.handler.log.info("Accepted client %s",addr)
+            except socket.timeout:
+                pass
+        self.server.close()
+    
+    def kill(self):
+        self.running = False
 
 class TelnetInput(InputHandler):
     extension_name="Telnet"
     def __init__(self, bot):
         InputHandler.__init__(self, bot)
-        self.log.info("Listening on *:16161")
-        self.server = socket.socket()
-        self.server.bind(("0.0.0.0", 16161))
-        self.server.listen(1)
         self.clients = []
         self.buffers = {}
-        self.listenThread = threading.Thread(target=self.acceptLoop)
-        self.log.debug("Starting listener thread")
+        self.listenThread = TelnetListener(self)
         self.listenThread.start()
+        
+    def unloaded(self):
+        self.stopListener();
+        for s in self.clients:
+            s.close()
     
-    def acceptLoop(self):
-        while True:
-            (sock, addr) = self.server.accept()
-            self.clients.append(sock)
-            self.buffers[sock] = ""
-            self.log.info("Accepted client %s",addr)
+    def stopListener(self):
+        self.log.info("Shutting down listener thread...")
+        self.listenThread.kill()
+        self.listenThread.join()
     
     def parse(self, bot, stream):
         lineBuffer = self.buffers[stream]

@@ -8,5 +8,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     pthang = Pointything.Pointything()
     pthang.do("loadModule", "Telnet")
-    #pthang.extendWith(TelnetInput)
-    pthang.run()
+    try:
+        pthang.run()
+    except KeyboardInterrupt:
+        pthang.cleanup()
