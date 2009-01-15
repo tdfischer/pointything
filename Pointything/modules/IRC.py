@@ -2,7 +2,7 @@
 import irclib
 irclib.DEBUG = 1
 class IRCInput(InputHandler):
-    extension_name="IRC"
+
     def __init__(self, bot):
         InputHandler.__init__(self, bot)
         self.bot = bot
@@ -37,6 +37,7 @@ class IRCInput(InputHandler):
         elif first.startswith("~"):
             args[0] = args[0][1:]
         else:
+            self.bot.readBanter(event.arguments()[0])
             return
         try:
             server.privmsg(event.target(),str(self.bot.do(*args)))

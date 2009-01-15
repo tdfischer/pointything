@@ -6,6 +6,21 @@ import threading
 import traceback
 import sys
 import atexit
+import logging
+
+class TelnetLogHandler(logging.Handler):
+    def __init__(self, handler):
+        logging.Handler.__init__(self)
+        self.handler = handler
+        
+    def emit(self, record):
+        for c in self.handler.clients:
+            try:
+                c.send(self.format(record)+"\n")
+            except socket.error:
+                pass
+            except:
+                self.handleError(record)
 
 class TelnetListener(threading.Thread):
     def __init__(self, handler):
@@ -13,9 +28,16 @@ class TelnetListener(threading.Thread):
         self.running = False
         self.handler = handler
         self.daemon = True
-        self.handler.log.info("Listening on *:16161")
         self.server = socket.socket()
-        self.server.bind(("0.0.0.0", 16161))
+        bound = False
+        port = 16161
+        while not bound:
+            try:
+              self.server.bind(("0.0.0.0", port))
+              bound = True
+            except socket.error:
+              port+=1
+        self.handler.log.info("Listening on *:%s", port)
         self.server.listen(1)
     
     def run(self):
@@ -36,18 +58,33 @@ class TelnetListener(threading.Thread):
         self.running = False
 
 class TelnetInput(InputHandler):
-    extension_name="Telnet"
     def __init__(self, bot):
         InputHandler.__init__(self, bot)
         self.clients = []
         self.buffers = {}
+        self.listenThread = None
+        self.logHandler = None
+    
+    def __str__(self):
+        return "Telnet Interface"
+    
+    def init(self):
         self.listenThread = TelnetListener(self)
         self.listenThread.start()
-        
+        self.logHandler = TelnetLogHandler(self)
+        logging.root.addHandler(self.logHandler)
+    
     def unloaded(self):
         self.stopListener();
+        listenThread = None
         for s in self.clients:
             s.close()
+    
+    def reloading(self, old):
+        self.listenThread = old.listenThread
+        self.clients = old.clients
+        self.buffers = old.buffers
+        self.logHandler = old.logHandler
     
     def stopListener(self):
         self.log.info("Shutting down listener thread...")
@@ -69,8 +106,11 @@ class TelnetInput(InputHandler):
         command = args[0]
         input = Output(args[1:], User(1))
         try:
+            #bot.readBanter(line)
             ret = bot.do(command, input)
             stream.send(str(ret)+"\n")
+        except NotImplementedError:
+            stream.send("Unknown command: %s\n"%command)
         except:
             exceptionType, exceptionValue, exceptionTraceback = sys.exc_info()
             out = traceback.format_exception(exceptionType, exceptionValue, exceptionTraceback)

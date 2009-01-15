@@ -2,7 +2,6 @@
 from Pointything.Extensions import *
 
 class StringTransform(Extension):
-    extension_name = "strings"
     
     @Action("concat")
     def concat(self, bot, *args, **kwargs):

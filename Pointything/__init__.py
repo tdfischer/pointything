@@ -1,69 +1,12 @@
 # -*- coding: utf-8 -*-
-import imp
+r"""Pointything, The Famous Whatshisface"""
 from Extensions import *
-import sys
+from Extensions import ExtensionControl
 import select
 import logging
 import __builtin__
 import traceback
-
-class ExtensionControl(Extension):
-    '''Extension to control the extensions. Thats deep, man.'''
-    extension_name = "extensionControl"
-    def __init__(self, bot):
-        Extension.__init__(self, bot)
-        extPath = "/home/trever/Projects/Pointything5/Pointything/modules"
-        self.log.debug("Looking for extensions in %s",extPath)
-        sys.path.append(extPath)
-    
-    @Action
-    def loadModule(self, input, modName):
-        self.log.info("Loading module %s",modName)
-        self.log.debug("Looking for module %s", modName)
-        (file, path, desc) = imp.find_module(modName)
-        self.log.debug("Found in %s", path)
-        mod = imp.load_module(modName, file, path, desc)
-        foundExtensions = []
-        for item in dir(mod):
-            ext = getattr(mod, item)
-            if type(ext) == type(Extension) and issubclass(ext, Extension) and ext != Extension and ext != InputHandler:
-                self.log.debug("Found extension %s", ext.extension_name)
-                foundExtensions.append(ext.extension_name)
-                input.bot.extendWith(ext)
-        self.log.info("Loaded %s with extensions: %s", modName, foundExtensions)
-        return "Loading complete. Found extensions: %s"%(foundExtensions)
-    
-    @Action
-    def details(self, input, extName):
-        ext = input.bot.grabExtension(extName)
-        details = {}
-        details["Name"] = ext.extension_name
-        details["Desc"] = ext.__doc__
-        details["Class"] = str(ext)
-        return details
-    
-    @Action
-    def unload(self, input, extName):
-        self.log.info("Unloading extension %s", extName)
-        input.bot.unloadExtension(input.bot.grabExtension(extName))
-        return "Unloaded extension"
-        
-    @Action
-    def functions(self, input, module=None):
-        ret = []
-        if module!=None:
-            for i in input.bot.extensions[module].userMethods():
-                ret.append(i.action_name)
-        else:
-            ret = input.bot.commands
-        return ret
-    
-    @Action
-    def extensions(self, bot):
-        ret = []
-        for m in input.bot.extensions:
-            ret.append(m)
-        return ret
+import sys
 
 class Pointything:
     def __init__(self):
@@ -74,6 +17,7 @@ class Pointything:
         self.extendWith(ExtensionControl)
 
     def do(self, command, input, user=None):
+        """'Does' a command. The heart of Pointything."""
         input = Output(input, user, self)
         if command in self.commands:
             command = self.commands[command]
@@ -89,7 +33,12 @@ class Pointything:
         out.do = doWrapper
         return out
 
+    def readBanter(self, input, user=None):
+        for ext in self.extensions.values():
+            ext.readBanter(input, user)
+    
     def run(self):
+        """Begins the main loop"""
         self.log.info("Entering main loop.")
         while True:
             streamToListener = {}
@@ -116,38 +65,58 @@ class Pointything:
         self.cleanup()
     
     def cleanup(self):
+        """Performs some end-of-life maintenence, including unloading modules and closing inputs."""
         self.log.debug("Cleaning up modules...")
         extList = self.extensions.copy()
         for m in extList:
             self.unloadExtension(self.extensions[m])
 
     def extendWith(self, ext):
+        """Loads an instance of ext
+        
+        ext is _NOT_ an instance of an Extension class. It is the class itself.
+        Extensions must be initialized properly by Pointything to work right.
+        
+        """
         log = logging.getLogger("Pointything.extensions")
-        log.info("Loading extension %s", ext.extension_name)
+        log.debug("Creating new instance of extension %s", ext)
         extInstance = ext(self)
-        #self.unloadExtension(ext)
-        self.extensions[ext.extension_name]=extInstance
+        try:
+            old = self.grabExtension(repr(extInstance))
+        except:
+            old = None
+        if old == None:
+            log.info("Loading extension %s (%s)", repr(extInstance), extInstance)
+            extInstance.init()
+        else:
+            log.info("Reloading extension %s (%s)", repr(extInstance), extInstance)
+            extInstance.reloading(old)
+            old.disposed(extInstance)
+            del old
+        self.extensions[repr(extInstance)]=extInstance
         for cmd in extInstance.userMethods():
-                self.commands[ext.extension_name+"."+cmd.action_name] = cmd
+                self.commands[repr(extInstance)+"."+cmd.action_name] = cmd
                 self.commands[cmd.action_name] = cmd
         if isinstance(extInstance, InputHandler):
-            log.info("Attaching %s as input", ext.extension_name)
+            log.info("Attaching %s as input", extInstance)
             self.inputs.append(extInstance)
     
     def grabExtension(self, extName):
+        """Returns the extension with the given name"""
         return self.extensions[extName]
     
     def unloadExtension(self, ext):
+        """Unloads the extension"""
         log = logging.getLogger("Pointything.extensions")
         if ext in self.extensions.values():
-            log.info("Unloading extension %s", ext.extension_name)
+            log.info("Unloading extension %s (%s)", repr(ext), ext)
             for cmd in ext.userMethods():
-                log.debug("Unregistering commands %s, %s", cmd.action_name, ext.extension_name+"."+cmd.action_name)
+                log.debug("Unregistering commands %s, %s", cmd.action_name, repr(ext)+"."+cmd.action_name)
                 if self.commands[cmd.action_name] == cmd:
                     del self.commands[cmd.action_name]
-                del self.commands[ext.extension_name+"."+cmd.action_name]
-            del self.extensions[ext.extension_name]
+                del self.commands[repr(ext)+"."+cmd.action_name]
+            del self.extensions[repr(ext)]
         if ext in self.inputs:
-            log.info("Detatching input %s", ext.extension_name)
+            log.info("Detatching input %s", ext)
             self.inputs.remove(ext)
         ext.unloaded()

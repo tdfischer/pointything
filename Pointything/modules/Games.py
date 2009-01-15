@@ -3,7 +3,6 @@ from Pointything.Extensions import *
 import random
 
 class EightBall(Extension):
-    extension_name="8ball"
     
     ANSWERS=[
         "As I see it, yes",
